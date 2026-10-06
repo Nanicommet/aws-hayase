@@ -1,0 +1,15 @@
+[
+  {
+    "manifestVersion": 2,
+    "name": "AWS Hayase Backend",
+    "id": "aws-hayase-backend",
+    "version": "0.1.0",
+    "type": "http",
+    "accuracy": "high",
+    "media": "sub",
+    "languages": ["US"],
+    "url": "aHR0cHM6Ly9naXRodWIuY29tL05hbmljb21tZXQvYXdzLWhheWFzZQ==",
+    "update": "https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/hayase/index.json",
+    "code": "https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/hayase/aws-hayase-backend.js"
+  }
+]

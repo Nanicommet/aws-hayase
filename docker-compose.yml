@@ -1,0 +1,33 @@
+services:
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DATA_DIR: /data
+      YUZONO_INDEX_URL: https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json
+      EXTENSION_SERVER_URL: http://extension-server:8080
+      FLARESOLVERR_URL: http://flaresolverr:8191
+      API_TOKEN: ${API_TOKEN:-}
+      SUBTITLE_INDEXER_URL: ${SUBTITLE_INDEXER_URL:-}
+      NZB_INDEXER_URL: ${NZB_INDEXER_URL:-}
+    volumes: [extension_cache:/data]
+    depends_on: [extension-server, flaresolverr]
+    ports: ["${APP_PORT:-8080}:8080"]
+
+  extension-server:
+    build: ./extension-server
+    restart: unless-stopped
+    expose: ["8080"]
+    volumes: [extension_cache:/data]
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      TZ: Africa/Tunis
+    expose: ["8191"]
+
+volumes:
+  extension_cache:
