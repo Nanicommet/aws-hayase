@@ -1,1 +1,10 @@
-{"name":"aws-hayase-api","private":true,"type":"module","engines":{"node":">=22"},"dependencies":{"fastify":"^5.6.0"}}
+{
+  "name": "aws-hayase-api",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@fastify/rate-limit": "^10.0.0",
+    "fastify": "^5.6.0"
+  }
+}

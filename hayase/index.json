@@ -3,7 +3,7 @@
     "manifestVersion": 2,
     "name": "AWS Hayase Backend",
     "id": "aws-hayase-backend",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "type": "http",
     "accuracy": "high",
     "media": "sub",

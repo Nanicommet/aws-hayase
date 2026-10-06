@@ -5,29 +5,53 @@ services:
     environment:
       PORT: "8080"
       DATA_DIR: /data
-      YUZONO_INDEX_URL: https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json
-      EXTENSION_SERVER_URL: http://extension-server:8080
+      EXTENSION_SERVER_URL: http://runtime:8080
       FLARESOLVERR_URL: http://flaresolverr:8191
       API_TOKEN: ${API_TOKEN:-}
+      HAYASE_KEY: ${HAYASE_KEY:-}
       SUBTITLE_INDEXER_URL: ${SUBTITLE_INDEXER_URL:-}
       NZB_INDEXER_URL: ${NZB_INDEXER_URL:-}
     volumes: [extension_cache:/data]
-    depends_on: [extension-server, flaresolverr]
-    ports: ["${APP_PORT:-8080}:8080"]
+    depends_on: [runtime, flaresolverr]
+    # Loopback by default; Caddy (profile "https") is the public entry point.
+    # Set APP_BIND=0.0.0.0 only for quick HTTP testing.
+    ports: ["${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"]
+    mem_limit: 256m
 
-  extension-server:
-    build: ./extension-server
+  runtime:
+    build:
+      context: ./runtime
+      args:
+        M_EXT_REF: ${M_EXT_REF:-}
     restart: unless-stopped
     expose: ["8080"]
     volumes: [extension_cache:/data]
+    mem_limit: 768m
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    build:
+      context: ./flaresolverr
+      args:
+        FLARESOLVERR_TAG: ${FLARESOLVERR_TAG:-latest}
     restart: unless-stopped
     environment:
       LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
-      TZ: Africa/Tunis
+      TZ: ${TZ:-Africa/Tunis}
     expose: ["8191"]
+    mem_limit: 1g
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [api]
 
 volumes:
   extension_cache:
+  caddy_data:
