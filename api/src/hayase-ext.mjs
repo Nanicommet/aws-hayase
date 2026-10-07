@@ -16,7 +16,7 @@ export function buildIndex(api, key, prefs) {
   return [{
     id: `aws-hayase-${prefs.audio}-${prefs.lang}`,
     name: `AWS Hayase (${label})`,
-    version: '0.4.0',
+    version: '0.5.0',
     type: 'torrent',
     accuracy: 'high',
     ratio: 0,

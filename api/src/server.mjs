@@ -9,7 +9,7 @@ import { ping, snapshot } from './health.mjs';
 import { readFileSync } from 'node:fs';
 import { toPublic, proxyVideo } from './streams.mjs';
 import { searchAll, listSources, startProbe, probeReport } from './fanout.mjs';
-import { findTorrents } from './hayase-bridge.mjs';
+import { findTorrents, debugLookup } from './hayase-bridge.mjs';
 import { parsePrefs, buildIndex, buildExtensionCode } from './hayase-ext.mjs';
 import { getJob, listJobs, setPublicUrl, waitFor } from './torrents.mjs';
 import { createReadStream } from 'node:fs';
@@ -187,6 +187,13 @@ app.get('/f/:id/*', { config: { rateLimit: false } }, async (req, reply) => {
   const stream = createReadStream(job.file, { start, end });
   reply.raw.on('close', () => stream.destroy());
   return reply.send(stream);
+});
+
+app.get('/admin/lookup', { preHandler: admin }, async (req) => {
+  const t = req.query.title ?? [];
+  const titles = (Array.isArray(t) ? t : [t]).map(String).filter(Boolean);
+  const ep = req.query.episode;
+  return debugLookup({ titles, episode: ep === undefined || ep === '' ? undefined : Number(ep) }, { lang: String(req.query.lang || 'en') });
 });
 
 app.get('/admin/jobs', { preHandler: admin }, async () => listJobs());

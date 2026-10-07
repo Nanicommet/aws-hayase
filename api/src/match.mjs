@@ -11,6 +11,8 @@ export function similarity(a, b) {
   let hit = 0;
   for (const t of A) if (B.has(t)) hit++;
   let score = (2 * hit) / (A.size + B.size);
+  // one title is a long, fully-contained version of the other ("Reborn as a Goblin" in the full English title)
+  if (Math.min(A.size, B.size) >= 3 && hit === Math.min(A.size, B.size)) score = Math.max(score, 0.85);
   // "Title 2" vs "Title 3": different numbers = probably a different season
   const nums = (S) => [...S].filter((t) => /^\d+$/.test(t)).sort().join(',');
   if (nums(A) !== nums(B) && (nums(A) || nums(B))) score *= 0.6;
@@ -30,7 +32,7 @@ export function findEpisode(eps, n) {
 
 export function classify(video, ctx = '') {
   const text = `${video.quality || ''} ${ctx}`;
-  const audio = /\b(dub|dubbed|english dub)\b/i.test(text) ? 'dub' : 'sub';
+  const audio = /\b(dub|dubbed|english dub)\b|مدبلج|دبلجة/i.test(text) ? 'dub' : 'sub';
   let res = 0;
   const m = /(\d{3,4})\s*p/i.exec(text);
   if (m) res = Number(m[1]);
@@ -45,4 +47,21 @@ export function qualityRank(res, wanted) {
   if (!res) return 1e6;
   if (wanted === 'best' || !wanted) return -res;
   return res <= wanted ? wanted - res : 10000 + (res - wanted);
+}
+
+// Search terms for a source's search box: Latin-script titles only, cleaned, plus a shortened variant.
+export function searchTerms(titles) {
+  const clean = (t) => String(t).replace(/\b(\d+(st|nd|rd|th) season|season \d+|part \d+|\(tv\))\b/gi, ' ')
+    .replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const latin = titles.filter((t) => (String(t).match(/[A-Za-z]/g) || []).length >= 3);
+  const terms = [];
+  for (const t of latin.length ? latin : titles) {
+    const c = clean(t);
+    if (c && !terms.includes(c)) terms.push(c);
+  }
+  for (const c of [...terms]) {
+    const short = c.split(' ').slice(0, 5).join(' ');
+    if (c.split(' ').length > 6 && !terms.includes(short)) terms.push(short);
+  }
+  return terms.slice(0, 4);
 }

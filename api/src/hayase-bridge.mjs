@@ -2,7 +2,7 @@
 import { searchAll } from './fanout.mjs';
 import { callProvider } from './providers.mjs';
 import { toPublic } from './streams.mjs';
-import { bestSimilarity, findEpisode, classify, qualityRank } from './match.mjs';
+import { bestSimilarity, findEpisode, classify, qualityRank, searchTerms } from './match.mjs';
 import { prepare, waitFor, getPublicUrl } from './torrents.mjs';
 import { cfg } from './config.mjs';
 
@@ -19,38 +19,61 @@ async function pool(items, n, fn) {
   return out;
 }
 
-async function gatherCandidates(q, prefs) {
-  const titles = q.titles.slice(0, 3);
-  const found = await searchAll(titles[0].replace(/[^\p{L}\p{N} ]+/gu, ' '), {
-    langs: prefs.lang ? [prefs.lang, 'all'] : undefined, limit: 40
-  });
-  // best matching anime per source, keep the strongest few sources
-  const matches = [];
-  for (const g of found.results) {
-    let best = null;
-    for (const it of g.items) {
-      const score = bestSimilarity(it.title, titles);
-      if (score >= 0.75 && (!best || score > best.score)) best = { ...it, score };
+async function findMatches(titles, prefs, wide, dbg) {
+  for (const term of searchTerms(titles)) {
+    const found = await searchAll(term, {
+      langs: prefs.lang ? [prefs.lang, 'all'] : undefined,
+      limit: wide ? 80 : 30, all: wide
+    });
+    if (dbg) { dbg.searched = (dbg.searched || 0) + found.searched; (dbg.terms ||= []).push({ term, wide, sourcesWithResults: found.results.length, failed: found.errors.length }); }
+    const matches = [];
+    for (const g of found.results) {
+      let best = null;
+      for (const it of g.items) {
+        const score = bestSimilarity(it.title, titles);
+        if (dbg && score >= 0.4) (dbg.near ||= []).push({ source: g.source.name, title: it.title, score: Number(score.toFixed(2)) });
+        if (score >= 0.75 && (!best || score > best.score)) best = { ...it, score };
+      }
+      if (best) matches.push({ source: g.source, anime: best });
     }
-    if (best) matches.push({ source: g.source, anime: best });
+    if (matches.length) return matches;
   }
+  return [];
+}
+
+async function gatherCandidates(q, prefs, dbg) {
+  const titles = q.titles.slice(0, 4);
+  let matches = await findMatches(titles, prefs, false, dbg);
+  if (!matches.length) matches = await findMatches(titles, prefs, true, dbg); // not in the proven sources: try them all
   matches.sort((a, b) => b.anime.score - a.anime.score);
+  if (dbg) dbg.matched = matches.map((m) => ({ source: m.source.name, title: m.anime.title, score: Number(m.anime.score.toFixed(2)) }));
 
   const cands = [];
   await pool(matches.slice(0, 5), 3, async ({ source, anime }) => {
     try {
-      const eps = await withTimeout(callProvider(await resolveSource(source.id), 'getEpisodeList', { animeData: { url: anime.url } }), 40_000);
+      const src = await resolveSource(source.id);
+      const eps = await withTimeout(callProvider(src, 'getEpisodeList', { animeData: { url: anime.url } }), 40_000);
       const ep = findEpisode(eps, q.episode);
-      if (!ep) return;
-      const videos = await withTimeout(callProvider(await resolveSource(source.id), 'getVideoList', { episodeData: { url: ep.url } }), 60_000);
+      if (!ep) { dbg?.noEpisode?.push(source.name) ?? (dbg && (dbg.noEpisode = [source.name])); return; }
+      const videos = await withTimeout(callProvider(src, 'getVideoList', { episodeData: { url: ep.url } }), 60_000);
       for (const v of toPublic(videos || [])) {
         if (!v.videoUrl) continue;
         const { audio, res } = classify(v, `${source.name} ${anime.title} ${ep.name || ''}`);
         cands.push({ source, anime, ep, v, audio, res, hls: /m3u8/i.test(v.videoUrl), score: anime.score });
       }
-    } catch { /* this source failed; others may still work */ }
+    } catch (e) { if (dbg) (dbg.errors ||= []).push(`${source.name}: ${String(e.message || e).slice(0, 80)}`); }
   });
+  if (dbg) dbg.candidates = cands.length;
   return cands;
+}
+
+export async function debugLookup(q, prefs) {
+  const dbg = {};
+  const t0 = Date.now();
+  await gatherCandidates(q, prefs, dbg);
+  dbg.seconds = Math.round((Date.now() - t0) / 1000);
+  if (dbg.near) dbg.near = dbg.near.sort((a, b) => b.score - a.score).slice(0, 10);
+  return dbg;
 }
 
 async function resolveSource(id) {
@@ -110,7 +133,7 @@ export async function findTorrents(q, prefs, budgetMs = cfg.budgetMs) {
 
   const picked = choose(e.list, q, prefs);
   const items = picked.map((c) => {
-    const name = `[${c.source.name}] ${c.anime.title} - ${q.episode != null ? pad(q.episode) : 'Movie'} [${c.res ? c.res + 'p' : 'HD'}] [${c.audio.toUpperCase()}]`;
+    const name = `[${c.source.name}] ${c.anime.title} - ${q.episode != null ? pad(q.episode) : 'Movie'} [${c.res ? c.res + 'p' : 'HD'}] [${c.audio.toUpperCase()}]${prefs.lang && prefs.lang !== 'en' && prefs.lang !== 'all' ? ` [${prefs.lang.toUpperCase()}]` : ''}`;
     const job = prepare({ key: `${c.source.id}|${c.ep.url}|${c.v.quality}`, name, videoPath: c.v.videoUrl, isHls: c.hls });
     return { c, name, job };
   });
