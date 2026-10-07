@@ -26,6 +26,19 @@ Only the API is published, and only on loopback by default. FlareSolverr and the
 3. Put `https://your.domain` in `API` inside `hayase/aws-hayase-backend.js`, commit, and import
    `https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/hayase/index.json` in Hayase.
 
+## Watching (web player)
+
+Open `https://YOUR.DOMAIN/watch?key=YOUR_HAYASE_KEY` in any browser. Search runs across all enabled
+Yuzono sources, then pick an episode and a quality. mp4 plays directly; HLS plays through hls.js.
+Video bytes are streamed through the runtime's built-in video proxy (headers/cookies handled, Range/seek
+supported). No transcoding is done.
+
+Which sources work right now: `GET /admin/probe?limit=50` (background job), then `GET /admin/probe/report`.
+Sources that fail a probe are skipped by search; ones that pass are searched first.
+
+**Hayase limitation:** Hayase plays torrents. Yuzono extensions return http/HLS streams, which Hayase can't
+play, so this stack serves them through `/watch` instead.
+
 ## Auth
 
 - `API_TOKEN`: admin routes (`/extensions`, `/providers`, `/source/*`, `/health/details`). Empty = admin disabled.

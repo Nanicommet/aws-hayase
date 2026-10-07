@@ -11,6 +11,9 @@ services:
       HAYASE_KEY: ${HAYASE_KEY:-}
       SUBTITLE_INDEXER_URL: ${SUBTITLE_INDEXER_URL:-}
       NZB_INDEXER_URL: ${NZB_INDEXER_URL:-}
+      DEFAULT_LANGS: ${DEFAULT_LANGS:-en,all}
+      ALLOW_NSFW: ${ALLOW_NSFW:-0}
+      SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-4}
     volumes: [extension_cache:/data]
     depends_on: [runtime, flaresolverr]
     # Loopback by default; Caddy (profile "https") is the public entry point.

@@ -6,6 +6,11 @@ import { initStorage, getIndex } from './catalogue.mjs';
 import { listProviders, getProvider, callProvider } from './providers.mjs';
 import { searchSubtitles, searchNzb } from './adapters.mjs';
 import { ping, snapshot } from './health.mjs';
+import { readFileSync } from 'node:fs';
+import { toPublic, proxyVideo } from './streams.mjs';
+import { searchAll, listSources, startProbe, probeReport } from './fanout.mjs';
+
+const WATCH_HTML = readFileSync(new URL('./watch.html', import.meta.url), 'utf8');
 
 const app = Fastify({ logger: true, trustProxy: true });
 await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
@@ -76,6 +81,45 @@ app.get('/source/:id/episodes', { preHandler: admin }, (req, reply) => {
 
 app.get('/hayase/nzb', { preHandler: hayase }, (req) => searchNzb(req.query));
 app.get('/hayase/subtitles', { preHandler: hayase }, (req) => searchSubtitles(req.query));
+
+
+// ---- user API (guarded by HAYASE_KEY when set) ----
+const csv = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+app.get('/api/sources', { preHandler: hayase }, (req) =>
+  listSources({ langs: csv(req.query.lang), nsfw: req.query.nsfw === '1' }));
+
+app.get('/api/search', { preHandler: hayase }, (req, reply) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return reply.code(400).send({ error: 'q required' });
+  return searchAll(q, {
+    langs: csv(req.query.lang),
+    ids: new Set(csv(req.query.sources)),
+    nsfw: req.query.nsfw === '1',
+    limit: Math.min(Number(req.query.limit) || 30, 100)
+  });
+});
+
+app.get('/api/source/:id/episodes', { preHandler: hayase }, (req, reply) => {
+  if (!req.query.url) return reply.code(400).send({ error: 'url required' });
+  return withSource(req, reply, (s) => callProvider(s, 'getEpisodeList', { animeData: { url: String(req.query.url) } }));
+});
+
+app.get('/api/source/:id/videos', { preHandler: hayase }, (req, reply) => {
+  if (!req.query.url) return reply.code(400).send({ error: 'url required' });
+  return withSource(req, reply, async (s) =>
+    toPublic(await callProvider(s, 'getVideoList', { episodeData: { url: String(req.query.url) } })));
+});
+
+// Video bytes/manifests. The unguessable token from the runtime is the capability; no rate limit (HLS = many requests).
+app.get('/v/*', { config: { rateLimit: false } }, proxyVideo);
+
+app.get('/watch', async (req, reply) => reply.type('text/html; charset=utf-8').send(WATCH_HTML));
+
+// ---- admin: which sources actually work? ----
+app.get('/admin/probe', { preHandler: admin }, async (req) =>
+  startProbe({ limit: Math.min(Number(req.query.limit) || 20, 500), langs: csv(req.query.lang) }));
+app.get('/admin/probe/report', { preHandler: admin }, () => probeReport());
 
 app.get('/resolve/video', { preHandler: admin }, (req, reply) =>
   reply.code(501).send({ error: 'provider adapter required' }));

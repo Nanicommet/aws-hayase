@@ -11,6 +11,9 @@ export const cfg = {
   hayaseKey: process.env.HAYASE_KEY || '',
   subtitleUrls: list(process.env.SUBTITLE_INDEXER_URL),
   nzbUrls: list(process.env.NZB_INDEXER_URL),
+  defaultLangs: list(process.env.DEFAULT_LANGS || 'en,all'),
+  allowNsfw: process.env.ALLOW_NSFW === '1',
+  searchConcurrency: Number(process.env.SEARCH_CONCURRENCY || 4),
   indexTtlMs: 6 * 60 * 60 * 1000,
   requestTimeoutMs: 60_000
 };

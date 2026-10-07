@@ -7,6 +7,10 @@ function get(name) {
   return state.get(name);
 }
 
+export function isOpen(name) {
+  return get(name).openUntil > Date.now();
+}
+
 export async function guarded(name, fn, { threshold = 3, cooldownMs = 30_000 } = {}) {
   const s = get(name);
   if (s.openUntil > Date.now()) throw new Error(`${name}: circuit open`);
