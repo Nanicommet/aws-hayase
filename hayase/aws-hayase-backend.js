@@ -15,6 +15,7 @@ async function find(q) {
   if (!r.ok) throw new Error('AWS Hayase backend: HTTP ' + r.status);
   const d = await r.json();
   if (d.preparing) throw new Error(d.message || 'Preparing on the server, try again in a minute.');
+  if (!(d.results || []).length && d.message) throw new Error(d.message);
   return (d.results || []).map((x) => ({ ...x, date: new Date(x.date) }));
 }
 

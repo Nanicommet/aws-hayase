@@ -26,6 +26,11 @@ async function findMatches(titles, prefs, wide, dbg) {
       limit: wide ? 80 : 30, all: wide
     });
     if (dbg) { dbg.searched = (dbg.searched || 0) + found.searched; (dbg.terms ||= []).push({ term, wide, sourcesWithResults: found.results.length, failed: found.errors.length }); }
+    if (dbg && found.errors.length) {
+      const why = {};
+      for (const e of found.errors) { const k = String(e.error).replace(/eu\.kanade[\w.$]*/g, '<ext>').slice(0, 70); why[k] = (why[k] || 0) + 1; }
+      (dbg.searchFailures ||= []).push(why);
+    }
     const matches = [];
     for (const g of found.results) {
       let best = null;

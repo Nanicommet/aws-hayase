@@ -2,7 +2,7 @@
   {
     "id": "aws-hayase-backend",
     "name": "AWS Hayase Backend",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "type": "torrent",
     "accuracy": "medium",
     "ratio": 0,
