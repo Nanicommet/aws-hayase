@@ -14,6 +14,10 @@ export const cfg = {
   defaultLangs: list(process.env.DEFAULT_LANGS || 'en,all'),
   allowNsfw: process.env.ALLOW_NSFW === '1',
   searchConcurrency: Number(process.env.SEARCH_CONCURRENCY || 4),
+  cacheDir: (process.env.DATA_DIR || '/data') + '/cache',
+  cacheMaxBytes: Number(process.env.CACHE_MAX_GB || 5) * 1e9,
+  prepareWaitMs: Number(process.env.PREPARE_WAIT_SEC || 90) * 1000,
+  publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
   indexTtlMs: 6 * 60 * 60 * 1000,
   requestTimeoutMs: 60_000
 };

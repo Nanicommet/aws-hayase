@@ -1,26 +1,28 @@
-// Set these two before publishing/importing. Keep KEY out of public repos
-// (use a private fork, or leave HAYASE_KEY empty on the server).
+// Static fallback (open mode, no access key). Recommended: import the generated link instead:
+//   https://YOUR.DOMAIN/hayase/index.json?key=YOUR_KEY&audio=sub&lang=en&quality=1080
 const API = 'https://mouadh-hayase.duckdns.org';
 const KEY = '';
-
+const PREFS = { audio: 'sub', lang: 'en', quality: '1080', k: '3' };
 const headers = KEY ? { 'x-hayase-key': KEY } : {};
 
-async function getJson(url) {
-  const r = await fetch(url, { headers });
-  if (!r.ok) throw new Error(`backend HTTP ${r.status}`);
-  return r.json();
+async function find(q) {
+  const p = new URLSearchParams();
+  (q.titles || []).slice(0, 3).forEach((t) => p.append('title', t));
+  if (q.episode != null && q.episode !== '') p.set('episode', q.episode);
+  if (q.resolution) p.set('resolution', q.resolution);
+  for (const [k, v] of Object.entries(PREFS)) p.set(k, v);
+  const r = await fetch(API + '/hayase/torrents?' + p, { headers });
+  if (!r.ok) throw new Error('AWS Hayase backend: HTTP ' + r.status);
+  return (await r.json()).map((x) => ({ ...x, date: new Date(x.date) }));
 }
 
 export default {
   async test() {
-    return (await fetch(API + '/health')).ok;
+    const r = await fetch(API + '/health');
+    if (!r.ok) throw new Error('AWS Hayase backend is unreachable');
+    return true;
   },
-  async single(q) {
-    const title = q?.titles?.[0] || '';
-    const episode = q?.episode ?? 1;
-    const x = await getJson(API + '/hayase/nzb?' + new URLSearchParams({ title, episode }));
-    return (x.results || []).map((r) => ({ title: r.title, link: r.url, size: r.size || 0, type: 'http' }));
-  },
-  async batch() { return []; },
-  async movie() { return []; }
+  single: find,
+  batch: async () => [],
+  async movie(q) { return find({ ...q, episode: undefined }); }
 };

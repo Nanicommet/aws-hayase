@@ -14,12 +14,14 @@ services:
       DEFAULT_LANGS: ${DEFAULT_LANGS:-en,all}
       ALLOW_NSFW: ${ALLOW_NSFW:-0}
       SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-4}
+      CACHE_MAX_GB: ${CACHE_MAX_GB:-5}
+      PREPARE_WAIT_SEC: ${PREPARE_WAIT_SEC:-90}
     volumes: [api_data:/data]
     depends_on: [runtime, flaresolverr]
     # Loopback by default; Caddy (profile "https") is the public entry point.
     # Set APP_BIND=0.0.0.0 only for quick HTTP testing.
     ports: ["${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"]
-    mem_limit: 256m
+    mem_limit: 512m
 
   runtime:
     build:

@@ -36,7 +36,19 @@ supported). No transcoding is done.
 Which sources work right now: `GET /admin/probe?limit=50` (background job), then `GET /admin/probe/report`.
 Sources that fail a probe are skipped by search; ones that pass are searched first.
 
-**Hayase limitation:** Hayase plays torrents. Yuzono extensions return http/HLS streams, which Hayase can't
+## Hayase (torrent bridge)
+
+Hayase only accepts torrents, so each chosen stream is converted: stream -> mp4 (ffmpeg copy, no re-encode)
+-> `.torrent` with an HTTP web seed pointing back at this server. Import this link in Hayase
+(Extension Settings -> Repositories). Your key and choices live only in the link:
+
+`https://YOUR.DOMAIN/hayase/index.json?key=HAYASE_KEY&audio=sub&lang=en&quality=1080`
+
+- `audio`: `sub` | `dub` | `any` · `lang`: source language (`en`, `es`, `all`...) · `quality`: `1080`, `720`, `best`
+- Import two links (sub and dub) to have both side by side.
+- The first play of an episode waits for the conversion (up to `PREPARE_WAIT_SEC`); replays are instant (cached).
+
+**Older note:** Hayase plays torrents. Yuzono extensions return http/HLS streams, which Hayase can't
 play, so this stack serves them through `/watch` instead.
 
 ## Auth
