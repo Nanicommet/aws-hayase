@@ -14,7 +14,7 @@ services:
       DEFAULT_LANGS: ${DEFAULT_LANGS:-en,all}
       ALLOW_NSFW: ${ALLOW_NSFW:-0}
       SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-4}
-    volumes: [extension_cache:/data]
+    volumes: [api_data:/data]
     depends_on: [runtime, flaresolverr]
     # Loopback by default; Caddy (profile "https") is the public entry point.
     # Set APP_BIND=0.0.0.0 only for quick HTTP testing.
@@ -56,5 +56,6 @@ services:
     depends_on: [api]
 
 volumes:
+  api_data:
   extension_cache:
   caddy_data:
