@@ -1,6 +1,6 @@
 // Set these two before publishing/importing. Keep KEY out of public repos
 // (use a private fork, or leave HAYASE_KEY empty on the server).
-const API = 'https://CHANGE-ME.example.com';
+const API = 'https://mouadh-hayase.duckdns.org';
 const KEY = '';
 
 const headers = KEY ? { 'x-hayase-key': KEY } : {};
