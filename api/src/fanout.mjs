@@ -31,6 +31,9 @@ async function pool(items, n, fn) {
 const withTimeout = (p, ms) =>
   Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
+// Extensions built on the newer "Hoster" API (extensions-lib v16+) can't run on this runtime yet.
+export const isSupported = (s) => (parseInt(s.extension.version, 10) || 0) < 16;
+
 const brief = (s) => ({ id: s.id, name: s.name, lang: s.lang, extension: s.extension.name });
 
 export async function pickSources({ langs, ids, nsfw, limit = 30 } = {}) {
@@ -43,6 +46,7 @@ export async function pickSources({ langs, ids, nsfw, limit = 30 } = {}) {
     const L = new Set((langs?.length ? langs : cfg.defaultLangs).map((x) => x.toLowerCase()));
     const wantNsfw = cfg.allowNsfw && nsfw;
     list = all.filter((s) =>
+      isSupported(s) &&
       L.has(String(s.lang || '').toLowerCase()) &&
       (wantNsfw || Number(s.extension.nsfw) !== 1) &&
       status[s.id]?.ok !== false &&           // skip sources a probe found broken
@@ -55,6 +59,10 @@ export async function pickSources({ langs, ids, nsfw, limit = 30 } = {}) {
 export async function listSources(opts) {
   const status = await loadStatus();
   return (await pickSources({ ...opts, limit: opts?.limit ?? 1000 })).map((s) => ({ ...brief(s), ok: status[s.id]?.ok ?? null }));
+}
+
+export async function unsupportedCount() {
+  return flattenSources(await getIndex()).filter((s) => !isSupported(s)).length;
 }
 
 export async function searchAll(q, opts = {}) {
@@ -70,7 +78,7 @@ export async function searchAll(q, opts = {}) {
       return null;
     }
   })).filter(Boolean);
-  return { searched: sources.length, results, errors };
+  return { searched: sources.length, skippedUnsupported: await unsupportedCount(), results, errors };
 }
 
 // ---- background probe: which sources return results right now? ----
@@ -104,5 +112,11 @@ export async function startProbe({ limit = 20, langs } = {}) {
 export async function probeReport() {
   const status = await loadStatus();
   const bad = Object.entries(status).filter(([, v]) => v.ok === false).map(([id, v]) => ({ id, error: v.error || 'no results' }));
-  return { state: probeState, working: Object.values(status).filter((v) => v.ok).length, broken: bad.length, brokenSample: bad.slice(0, 25) };
+  const why = {};
+  for (const b of bad) {
+    const k = String(b.error).replace(/eu\.kanade[\w.$]*/g, '<ext>').slice(0, 90);
+    why[k] = (why[k] || 0) + 1;
+  }
+  const reasons = Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([reason, count]) => ({ count, reason }));
+  return { state: probeState, working: Object.values(status).filter((v) => v.ok).length, broken: bad.length, topReasons: reasons, unsupportedSkipped: await unsupportedCount() };
 }

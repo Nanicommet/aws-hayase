@@ -126,7 +126,9 @@ app.get('/resolve/video', { preHandler: admin }, (req, reply) =>
 
 app.setErrorHandler((err, req, reply) => {
   req.log.error(err);
-  reply.code(err.statusCode && err.statusCode < 500 ? err.statusCode : 502).send({ error: String(err.message || err) });
+  let msg = String(err.message || err);
+  if (/does not define or inherit an implementation/.test(msg)) msg = 'This source uses a newer extension format (Hoster API) that the runtime does not support yet.';
+  reply.code(err.statusCode && err.statusCode < 500 ? err.statusCode : 502).send({ error: msg });
 });
 
 app.listen({ port: cfg.port, host: '0.0.0.0' }).catch((e) => { app.log.error(e); process.exit(1); });
