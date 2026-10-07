@@ -106,8 +106,9 @@ async function deepCheck(s) {
   return r.status === 200 || r.status === 206 ? { ok: true } : { ok: false, stage: 'stream', error: `stream HTTP ${r.status}` };
 }
 
-export async function startProbe({ limit = 20, langs, deep = true } = {}) {
+export async function startProbe({ limit = 20, langs, deep = true, fresh = false } = {}) {
   if (probeState.running) return probeState;
+  if (fresh) { await loadStatus(); for (const k of Object.keys(statusMemo)) delete statusMemo[k]; }
   const sources = await pickSources({ langs, limit, forProbe: true });
   Object.assign(probeState, { running: true, done: 0, total: sources.length, ok: 0, bad: 0, startedAt: Date.now() });
   await loadStatus();

@@ -51,6 +51,13 @@ Hayase only accepts torrents, so each chosen stream is converted: stream -> mp4 
 **Older note:** Hayase plays torrents. Yuzono extensions return http/HLS streams, which Hayase can't
 play, so this stack serves them through `/watch` instead.
 
+## Sites blocking the server (HTTP 403)
+
+Many sources refuse cloud/datacenter IP addresses. FlareSolverr only solves JavaScript challenges, it can't
+fix an IP block. Experiment: `./warp.sh on` routes the runtime + FlareSolverr through Cloudflare WARP
+(`./warp.sh off` undoes it). Measure with `/admin/probe?limit=60&fresh=1` then `/admin/probe/report`.
+If WARP isn't enough, the proven fix is a residential proxy (set it as FLARE_PROXY and in JAVA_OPTS).
+
 ## Auth
 
 - `API_TOKEN`: admin routes (`/extensions`, `/providers`, `/source/*`, `/health/details`). Empty = admin disabled.

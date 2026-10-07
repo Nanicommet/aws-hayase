@@ -124,7 +124,7 @@ app.get('/watch', async (req, reply) => reply.type('text/html; charset=utf-8').s
 
 // ---- admin: which sources actually work? ----
 app.get('/admin/probe', { preHandler: admin }, async (req) =>
-  startProbe({ limit: Math.min(Number(req.query.limit) || 20, 500), langs: csv(req.query.lang), deep: req.query.deep !== '0' }));
+  startProbe({ limit: Math.min(Number(req.query.limit) || 20, 500), langs: csv(req.query.lang), deep: req.query.deep !== '0', fresh: req.query.fresh === '1' }));
 app.get('/admin/probe/report', { preHandler: admin }, () => probeReport());
 
 // ---- Hayase torrent bridge ----

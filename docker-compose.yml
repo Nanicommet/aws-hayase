@@ -32,7 +32,7 @@ services:
     expose: ["8080"]
     environment:
       # Java (unlike Android) won't fetch missing intermediate certs unless told to.
-      JAVA_TOOL_OPTIONS: -Dcom.sun.security.enableAIAcaIssuers=true
+      JAVA_TOOL_OPTIONS: ${JAVA_OPTS:--Dcom.sun.security.enableAIAcaIssuers=true}
     volumes: [extension_cache:/data]
     mem_limit: 768m
 
@@ -44,9 +44,28 @@ services:
     restart: unless-stopped
     environment:
       LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      PROXY_URL: ${FLARE_PROXY:-}
       TZ: ${TZ:-Africa/Tunis}
     expose: ["8191"]
     mem_limit: 1g
+
+  # Optional: sends source traffic out through Cloudflare WARP instead of the AWS address.
+  # Switch with ./warp.sh on|off (adds the "warp" profile and the proxy settings below).
+  warp:
+    image: caomingjun/warp
+    profiles: ["warp"]
+    restart: unless-stopped
+    device_cgroup_rules:
+      - 'c 10:200 rwm'
+    cap_add: [NET_ADMIN, MKNOD, AUDIT_WRITE]
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      WARP_SLEEP: "5"
+    volumes: [warp_data:/var/lib/cloudflare-warp]
+    expose: ["1080"]
+    mem_limit: 256m
 
   caddy:
     image: caddy:2-alpine
@@ -61,6 +80,7 @@ services:
     depends_on: [api]
 
 volumes:
+  warp_data:
   api_data:
   extension_cache:
   caddy_data:
