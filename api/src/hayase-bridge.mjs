@@ -3,7 +3,7 @@ import { searchAll } from './fanout.mjs';
 import { callProvider } from './providers.mjs';
 import { toPublic } from './streams.mjs';
 import { bestSimilarity, findEpisode, classify, qualityRank } from './match.mjs';
-import { prepare, waitFor, provisionalHash, getPublicUrl } from './torrents.mjs';
+import { prepare, waitFor, getPublicUrl } from './torrents.mjs';
 import { cfg } from './config.mjs';
 
 const cache = new Map(); // query key -> { at, cands }
@@ -77,33 +77,57 @@ function choose(cands, q, prefs) {
   return out;
 }
 
-export async function findTorrents(q, prefs) {
-  if (!q.titles?.length) return [];
-  const key = JSON.stringify([q.titles, q.episode, prefs.lang]);
-  let hit = cache.get(key);
-  if (!hit || Date.now() - hit.at > TTL) {
-    hit = { at: Date.now(), cands: await gatherCandidates(q, prefs) };
-    cache.set(key, hit);
-  }
-  const picked = choose(hit.cands, q, prefs);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const candCache = new Map(); // "title|episode|lang" -> { at, done, list, error, promise }
 
+function getCands(q, prefs) {
+  const key = [q.titles[0].toLowerCase(), q.episode ?? 'movie', prefs.lang].join('|');
+  let e = candCache.get(key);
+  if (!e || Date.now() - e.at > TTL) {
+    e = { at: Date.now(), done: false, list: null, error: null };
+    e.promise = gatherCandidates(q, prefs)
+      .then((l) => { e.list = l; })
+      .catch((err) => { e.error = String(err.message || err); })
+      .finally(() => {
+        e.done = true;
+        if (e.error || !e.list?.length) e.at = Date.now() - TTL + 2 * 60_000; // retry empty/failed lookups after 2 min
+      });
+    candCache.set(key, e);
+  }
+  return e;
+}
+
+// Never blocks longer than the budget (Hayase gives extensions 10 s): returns what is ready,
+// or { preparing: true } while the search / conversion keeps running in the background.
+export async function findTorrents(q, prefs, budgetMs = cfg.budgetMs) {
+  if (!q.titles?.length) return { results: [] };
+  const t0 = Date.now();
+  const e = getCands(q, prefs);
+  await Promise.race([e.promise, sleep(budgetMs)]);
+  if (!e.done) return { preparing: true, message: 'Searching sources for this episode. Try again in about a minute.' };
+  if (e.error) return { results: [], message: 'Search failed: ' + e.error };
+  if (!e.list.length) return { results: [], message: 'No working source has this episode yet.' };
+
+  const picked = choose(e.list, q, prefs);
   const items = picked.map((c) => {
     const name = `[${c.source.name}] ${c.anime.title} - ${q.episode != null ? pad(q.episode) : 'Movie'} [${c.res ? c.res + 'p' : 'HD'}] [${c.audio.toUpperCase()}]`;
     const job = prepare({ key: `${c.source.id}|${c.ep.url}|${c.v.quality}`, name, videoPath: c.v.videoUrl, isHls: c.hls });
     return { c, name, job };
   });
-  await waitFor(items.map((i) => i.job), cfg.prepareWaitMs, 1);
+  await waitFor(items.map((i) => i.job), Math.max(budgetMs - (Date.now() - t0), 0), 1);
 
   const pub = getPublicUrl();
-  return items.filter((i) => i.job.status !== 'failed').map(({ c, name, job }) => ({
+  const results = items.filter((i) => i.job.status === 'ready').map(({ c, name, job }) => ({
     title: name,
     link: `${pub}/t/${job.id}.torrent`,
-    hash: job.hash || provisionalHash(job.id),
-    size: job.size || 0,
+    hash: job.hash,
+    size: job.size,
     seeders: 10, leechers: 0, downloads: 0,
     accuracy: c.score >= 0.9 ? 'high' : 'medium',
-    date: new Date().toISOString(),
-    ready: job.status === 'ready',
-    status: job.status
+    date: new Date().toISOString()
   }));
+  if (results.length) return { results };
+  if (items.some((i) => !['ready', 'failed'].includes(i.job.status)))
+    return { preparing: true, message: 'Converting this episode on the server. Try again in about a minute.' };
+  return { results: [], message: 'Conversion failed: ' + (items[0]?.job.error || 'unknown error') };
 }

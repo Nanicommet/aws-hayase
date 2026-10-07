@@ -44,7 +44,9 @@ async function find(q) {
   for (const [k, v] of Object.entries(PREFS)) p.set(k, v);
   const r = await fetch(API + '/hayase/torrents?' + p, { headers });
   if (!r.ok) throw new Error('AWS Hayase backend: HTTP ' + r.status);
-  return (await r.json()).map((x) => ({ ...x, date: new Date(x.date) }));
+  const d = await r.json();
+  if (d.preparing) throw new Error(d.message || 'Preparing on the server, try again in a minute.');
+  return (d.results || []).map((x) => ({ ...x, date: new Date(x.date) }));
 }
 
 export default {

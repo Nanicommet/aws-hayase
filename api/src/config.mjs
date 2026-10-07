@@ -16,6 +16,7 @@ export const cfg = {
   searchConcurrency: Number(process.env.SEARCH_CONCURRENCY || 4),
   cacheDir: (process.env.DATA_DIR || '/data') + '/cache',
   cacheMaxBytes: Number(process.env.CACHE_MAX_GB || 5) * 1e9,
+  budgetMs: Number(process.env.HAYASE_BUDGET_SEC || 8) * 1000, // Hayase kills extensions after 10 s
   prepareWaitMs: Number(process.env.PREPARE_WAIT_SEC || 90) * 1000,
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
   indexTtlMs: 6 * 60 * 60 * 1000,
