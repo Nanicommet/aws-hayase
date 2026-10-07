@@ -96,6 +96,7 @@ app.get('/api/search', { preHandler: hayase }, (req, reply) => {
     langs: csv(req.query.lang),
     ids: new Set(csv(req.query.sources)),
     nsfw: req.query.nsfw === '1',
+    all: req.query.all === '1',
     limit: Math.min(Number(req.query.limit) || 30, 100)
   });
 });
@@ -118,7 +119,7 @@ app.get('/watch', async (req, reply) => reply.type('text/html; charset=utf-8').s
 
 // ---- admin: which sources actually work? ----
 app.get('/admin/probe', { preHandler: admin }, async (req) =>
-  startProbe({ limit: Math.min(Number(req.query.limit) || 20, 500), langs: csv(req.query.lang) }));
+  startProbe({ limit: Math.min(Number(req.query.limit) || 20, 500), langs: csv(req.query.lang), deep: req.query.deep !== '0' }));
 app.get('/admin/probe/report', { preHandler: admin }, () => probeReport());
 
 app.get('/resolve/video', { preHandler: admin }, (req, reply) =>

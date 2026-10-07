@@ -5,6 +5,7 @@ import { cfg } from './config.mjs';
 import { getIndex, flattenSources } from './catalogue.mjs';
 import { callProvider } from './providers.mjs';
 import { isOpen } from './health.mjs';
+import { toPublic } from './streams.mjs';
 
 const statusFile = () => path.join(cfg.dataDir, 'source-status.json');
 let statusMemo = null;
@@ -36,23 +37,27 @@ export const isSupported = (s) => (parseInt(s.extension.version, 10) || 0) < 16;
 
 const brief = (s) => ({ id: s.id, name: s.name, lang: s.lang, extension: s.extension.name });
 
-export async function pickSources({ langs, ids, nsfw, limit = 30 } = {}) {
-  const all = flattenSources(await getIndex());
+export async function pickSources({ langs, ids, nsfw, limit = 30, forProbe = false, all = false } = {}) {
+  const every = flattenSources(await getIndex());
   const status = await loadStatus();
   let list;
   if (ids?.size) {
-    list = all.filter((s) => ids.has(String(s.id)));
+    list = every.filter((s) => ids.has(String(s.id)));
   } else {
     const L = new Set((langs?.length ? langs : cfg.defaultLangs).map((x) => x.toLowerCase()));
     const wantNsfw = cfg.allowNsfw && nsfw;
-    list = all.filter((s) =>
+    list = every.filter((s) =>
       isSupported(s) &&
       L.has(String(s.lang || '').toLowerCase()) &&
       (wantNsfw || Number(s.extension.nsfw) !== 1) &&
-      status[s.id]?.ok !== false &&           // skip sources a probe found broken
-      !isOpen(`provider:${s.id}`));           // skip sources currently tripping their breaker
+      (forProbe || (status[s.id]?.ok !== false && !isOpen(`provider:${s.id}`))));
+    if (!forProbe && !all) {
+      const verified = list.filter((s) => status[s.id]?.ok === true);
+      if (verified.length >= 3) list = verified; // enough proven sources: don't waste time on unknown ones
+    }
   }
-  const rank = (s) => (status[s.id]?.ok === true ? 0 : 1); // verified-working first
+  // probe: never-tested first. search: proven first.
+  const rank = forProbe ? (s) => (status[s.id] ? 1 : 0) : (s) => (status[s.id]?.ok === true ? 0 : 1);
   return list.sort((a, b) => rank(a) - rank(b)).slice(0, limit);
 }
 
@@ -84,19 +89,41 @@ export async function searchAll(q, opts = {}) {
 // ---- background probe: which sources return results right now? ----
 export const probeState = { running: false, done: 0, total: 0, ok: 0, bad: 0, startedAt: null };
 
-export async function startProbe({ limit = 20, langs } = {}) {
+// Full path: popular -> episodes -> video list -> actually fetch bytes through the proxy.
+async function deepCheck(s) {
+  const pop = await withTimeout(callProvider(s, 'getPopularAnime', { page: 1 }), 40_000);
+  const a = (pop.animes || [])[0];
+  if (!a) return { ok: false, error: 'no results' };
+  const eps = await withTimeout(callProvider(s, 'getEpisodeList', { animeData: { url: a.url } }), 40_000);
+  if (!Array.isArray(eps) || !eps.length) return { ok: false, stage: 'episodes', error: 'no episodes' };
+  const vids = await withTimeout(callProvider(s, 'getVideoList', { episodeData: { url: eps[eps.length - 1].url } }), 60_000);
+  const v = (Array.isArray(vids) ? vids : []).find((x) => x.videoUrl);
+  if (!v) return { ok: false, stage: 'videos', error: 'no playable video' };
+  const pub = String(toPublic(v).videoUrl || '');
+  if (!pub.startsWith('/v/')) return { ok: true, stage: 'direct' }; // external URL, can't pre-verify
+  const r = await fetch(cfg.extensionUrl + '/video/' + pub.slice(3), { headers: { range: 'bytes=0-1023' }, signal: AbortSignal.timeout(30_000) });
+  await r.body?.cancel().catch(() => {});
+  return r.status === 200 || r.status === 206 ? { ok: true } : { ok: false, stage: 'stream', error: `stream HTTP ${r.status}` };
+}
+
+export async function startProbe({ limit = 20, langs, deep = true } = {}) {
   if (probeState.running) return probeState;
-  const sources = await pickSources({ langs, limit });
+  const sources = await pickSources({ langs, limit, forProbe: true });
   Object.assign(probeState, { running: true, done: 0, total: sources.length, ok: 0, bad: 0, startedAt: Date.now() });
   await loadStatus();
   (async () => {
     await pool(sources, 2, async (s) => {
       const t = Date.now();
       try {
-        const r = await withTimeout(callProvider(s, 'getPopularAnime', { page: 1 }), 40_000);
-        const count = (r.animes || []).length;
-        statusMemo[s.id] = { ok: count > 0, count, ms: Date.now() - t, at: Date.now() };
-        count > 0 ? probeState.ok++ : probeState.bad++;
+        let res;
+        if (deep) {
+          res = await deepCheck(s);
+        } else {
+          const r = await withTimeout(callProvider(s, 'getPopularAnime', { page: 1 }), 40_000);
+          res = { ok: (r.animes || []).length > 0, error: (r.animes || []).length ? undefined : 'no results' };
+        }
+        statusMemo[s.id] = { ...res, ms: Date.now() - t, at: Date.now() };
+        res.ok ? probeState.ok++ : probeState.bad++;
       } catch (e) {
         statusMemo[s.id] = { ok: false, error: String(e.message || e), ms: Date.now() - t, at: Date.now() };
         probeState.bad++;
