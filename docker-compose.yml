@@ -28,6 +28,8 @@ services:
         M_EXT_REF: ${M_EXT_REF:-}
     restart: unless-stopped
     expose: ["8080"]
+    environment:
+      JAVA_TOOL_OPTIONS: -Dcom.sun.security.enableAIAcaIssuers=true
     volumes: [extension_cache:/data]
     mem_limit: 768m
 
