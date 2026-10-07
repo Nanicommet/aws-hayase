@@ -11,6 +11,14 @@ const app = Fastify({ logger: true, trustProxy: true });
 await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
 await initStorage();
 
+// CORS: Hayase calls this API from its own origin, so browsers need these headers.
+app.addHook('onRequest', async (req, reply) => {
+  reply.header('access-control-allow-origin', '*');
+  reply.header('access-control-allow-headers', 'x-hayase-key, authorization, content-type');
+  if (req.method === 'OPTIONS') return reply.code(204).send();
+});
+
+
 function safeEq(a, b) {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
   return x.length === y.length && timingSafeEqual(x, y);

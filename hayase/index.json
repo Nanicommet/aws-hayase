@@ -2,14 +2,14 @@
   {
     "id": "aws-hayase-backend",
     "name": "AWS Hayase Backend",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "type": "torrent",
     "accuracy": "medium",
     "ratio": 0,
     "media": "sub",
     "languages": ["all"],
     "nsfw": false,
-    "icon": "https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/README.md",
+    "icon": "https://github.com/Nanicommet.png",
     "update": "https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/hayase/index.json",
     "code": "https://raw.githubusercontent.com/Nanicommet/aws-hayase/main/hayase/aws-hayase-backend.js"
   }
